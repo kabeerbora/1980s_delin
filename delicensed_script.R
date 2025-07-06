@@ -9,11 +9,11 @@ library(fixest)
 library(HonestDiD)
 library(lmtest)
 library(sandwich)
+
 ##Read data
 library(readr)
 setwd("G:/My Drive/data_economics_research/jan_weber_kabeer_bora")
 panel_79_88 <- read_csv("panel_79_88.csv")
-
 df <- panel_79_88
 View(df) 
 
@@ -52,7 +52,7 @@ df_panel$rate_surplus <- with(df_panel,
                         )
 )
 
-df_panel$rop_naya <- (df_panel$value_added - df_panel$tot_emoluments)/df_panel$capital_closing
+df_panel$rop_naya <- (df_panel$value_added - df_panel$tot_emoluments)/df_panel$capital_open
 
 
 ##Regression
@@ -61,20 +61,33 @@ df_clean <- df_panel %>%
     !is.na(rate_of_profit),           
     !is.nan(rate_of_profit),            
     is.finite(rate_of_profit),
-    rop_naya >= -5,
-    rop_naya <= 5,
+    rate_of_profit >= -2,
+    rate_of_profit <= 2,
     year >= 1981,
-    year <= 1987
+    year <= 1988
   )
 
+df_clean <- df_panel %>%
+  filter(
+    !is.na(rate_of_profit),           
+    !is.nan(rate_of_profit),            
+    is.finite(rate_of_profit),
+    rate_of_profit >= -2,
+    rate_of_profit <= 2,
+    year >= 1981,
+    year <= 1988
+  )
+
+
+
 did_model_twfe <- plm(
-  rate_of_profit ~ delicensed + factor(Year), 
+  rop_naya ~ delicensed + factor(Year), 
   data = df_clean,
   model = "within", 
   effect = "individual"
 )
 
-clust_vcov <- vcovHC(did_model_twfe, type = "HC1", cluster = "group", group = df_clean$nic_code)
+clust_vcov <- vcovHC(did_model_twfe, type = "HC1", cluster = "group", group = df_clean$nic_3digit)
 
 coeftest(did_model_twfe, vcov = clust_vcov)
 summary(did_model_state) 
@@ -98,13 +111,13 @@ summary(did_model_twfe)
 df_clean$year_state <- interaction(df_clean$Year, df_clean$State, drop = TRUE)
 # Step 2: Estimate the model with individual and year × state fixed effects
 did_model_twfe_interaction <- plm(
-  rop_naya ~ delicensed + factor(year_state),
+  rate_of_profit ~ delicensed + factor(year_state),
   data = df_clean,
   model = "within",
-  effect = "individual"  # Firm-level fixed effects are still applied here
+  effect = "individual"  
 )
 
-clust_vcov <- vcovHC(did_model_twfe_interaction, type = "HC1", cluster = "group", group = df_clean$nic_code)
+clust_vcov <- vcovHC(did_model_twfe_interaction, type = "HC1", cluster = "group", group = df_clean$nic_3digit)
 
 coeftest(did_model_twfe_interaction, vcov = clust_vcov)
 
@@ -159,7 +172,7 @@ df_est <- df_clean %>%
 
 # 6. Estimate the event study DID model
 event_study_model <- plm(
-  k_form ~ event_time_grouped + factor(Year) + factor(State),
+  rop_naya ~ event_time_grouped + factor(year_state),
   data = df_est,
   model = "within",
   effect = "individual"
@@ -194,14 +207,14 @@ df_est <- df_clean %>%
 
 # 6. Run event study TWFE model
 event_study_model <- plm(
-  rate_of_profit ~ event_time_grouped + factor(year_state),
+  rop_naya ~ event_time_grouped + factor(Year),
   data = df_est,
   model = "within",
   effect = "individual"
 )
 
 # 7. Cluster standard errors at the nic_code level
-vcov_nic <- vcovHC(event_study_model, type = "HC1", cluster = "group", group = df_est$nic_code)
+vcov_nic <- vcovHC(event_study_model, type = "HC1", cluster = "group", group = df_est$nic_3digit)
 
 # 8. Output coefficient table with clustered SEs
 coeftest(event_study_model, vcov. = vcov_nic)
