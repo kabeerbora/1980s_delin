@@ -15,11 +15,13 @@ library(readr)
 setwd("G:/My Drive/data_economics_research/jan_weber_kabeer_bora")
 panel_79_88 <- read_csv("panel_79_88.csv")
 df <- panel_79_88
-View(df) 
-
+View(df)
+ 
 ##Set panel 
 df_panel <- pdata.frame(df, index = c("firm_Id", "Year"))
-
+df_panel <- df_panel[df_panel$ownership_code_unique == 1, ]
+df_panel <- df_panel[df_panel$ >= 50, ]
+unique(df_panel$ownership_code_unique)
 ##Identify the Delicensing sectors
 
 delin <- c(
@@ -52,7 +54,7 @@ df_panel$rate_surplus <- with(df_panel,
                         )
 )
 
-df_panel$rop_naya <- (df_panel$value_added - df_panel$tot_emoluments)/df_panel$capital_open
+df_panel$rop_naya <- (df_panel$value_added - df_panel$wages)/df_panel$capital_open
 
 
 ##Regression
@@ -61,12 +63,14 @@ df_clean <- df_panel %>%
     !is.na(rate_of_profit),           
     !is.nan(rate_of_profit),            
     is.finite(rate_of_profit),
-    rate_of_profit >= -2,
-    rate_of_profit <= 2,
+    rate_of_profit >= -5,
+    rate_of_profit <= 5,
     year >= 1981,
-    year <= 1988
+    year <= 1987,
+    ownership_code_unique == 1
   )
 
+df_clean$delined <- ifelse(df_clean$nic_3digit %in% delin, 1, 0)
 df_clean <- df_panel %>%
   filter(
     !is.na(rate_of_profit),           
@@ -172,7 +176,7 @@ df_est <- df_clean %>%
 
 # 6. Estimate the event study DID model
 event_study_model <- plm(
-  rop_naya ~ event_time_grouped + factor(year_state),
+  rate_of_profit ~ event_time_grouped + factor(year_state),
   data = df_est,
   model = "within",
   effect = "individual"
@@ -207,7 +211,7 @@ df_est <- df_clean %>%
 
 # 6. Run event study TWFE model
 event_study_model <- plm(
-  rop_naya ~ event_time_grouped + factor(Year),
+  rate_of_profit ~ event_time_grouped + factor(year_state),
   data = df_est,
   model = "within",
   effect = "individual"
