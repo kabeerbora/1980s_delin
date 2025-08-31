@@ -51,6 +51,27 @@ for (var in existing_monetary_vars) {
 
 df$wpi_adjust <- NULL
 
+state_classification <- data.frame(
+  state_code = c("WEST BENGAL", "GUJARAT", "MAHARASHTRA", "ORISSA",
+                 "ANDHRA PRADESH", "KERALA", "RAJASTHAN", "TAMIL NADU", "KARNATAKA",
+                 "ASSAM", "BIHAR", "HARYANA", "PUNJAB", "UTTAR PRADESH", "JAMMU & KASHMIR"),
+  pro_worker = c(1, 1, 1, 1, 
+                 0, 0, 0, 0, 0,
+                 0, 0, 0, 0, 0, 0),
+  pro_employer = c(0, 0, 0, 0,
+                   1, 1, 1, 1, 1,
+                   0, 0, 0, 0, 0, 0),
+  neutral = c(0, 0, 0, 0,
+              0, 0, 0, 0, 0,
+              1, 1, 1, 1, 1, 1)
+)
+
+
+df <- df %>%
+  left_join(state_classification, by = "state_code") %>%
+  # Ensure all other variables are preserved
+  relocate(names(state_classification)[-1], .after = state_code)
+
 
 panel_79_88 <- read_csv("panel_with_unique_ids.csv")
 df <- panel_79_88
@@ -114,11 +135,6 @@ df_panel$rate_surplus <- with(df_panel,
                         )
 )
 
-df_panel$rop_naya <- (df_panel$value_added - df_panel$wages)/df_panel$capital_open
-df_panel$rate_of_profit <- (df_panel$value_added - df_panel$tot_emoluments)/df_panel$capital_open
-
-View(df_panel)
-
 df_clean <- df_panel %>%
   mutate(Year = as.numeric(as.character(Year))) %>%  # Convert Year to numeric
   filter(
@@ -130,195 +146,7 @@ df_clean <- df_panel %>%
     Year >= 1979,
     Year <= 1986
   )
-df_clean <- df_panel %>%
-  filter(
-    !is.na(rate_of_profit),           
-    !is.nan(rate_of_profit),            
-    is.finite(rate_of_profit),
-    rate_of_profit >= -2,
-    rate_of_profit <= 2,
-    year >= 1981,
-    year <= 1988
-  )
 
-
-## K_form DiD
-
-did_model_1 <- feols(
-  k_form ~ delicensed| 
-    firm_Id + state_code + year, 
-  data = df_clean, 
-  cluster = ~nic_3digit
-)
-
-summary(did_model_1)
-
-did_model_2 <- feols(
-  rate_of_profit ~ delicensed + gross_sales + persons_engaged| 
-    firm_Id + state_code + year, 
-  data = df_clean, 
-  cluster = ~nic_3digit
-)
-
-summary(did_model_2)
-
-
-did_model_3 <- feols(
-  k_form ~ delicensed + year_initial + persons_engaged| 
-    firm_Id + state_code + year, 
-  data = df_clean, 
-  cluster = ~nic_3digit
-)
-
-summary(did_model_3)
-
-## RoP DiD
-
-did_model_4 <- feols(
-  rate_of_profit ~ delicensed| 
-    firm_Id + state_code + year, 
-  data = df_clean, 
-  cluster = ~nic_3digit
-)
-
-summary(did_model_4)
-
-did_model_5 <- feols(
-  rate_of_profit ~ delicensed + year_initial| 
-    firm_Id + state_code + year, 
-  data = df_clean, 
-  cluster = ~nic_3digit
-)
-
-summary(did_model_5)
-
-did_model_2 <- feols(
-  rate_of_profit ~ delicensed + gross_sales + persons_engaged + state_code:factor(year) | 
-    firm_Id + state_code + year, 
-  data = df_clean, 
-  cluster = ~nic_3digit
-)
-
-summary(did_model_2)
-
-did_model_6 <- feols(
-  rate_of_profit ~ delicensed + year_initial + persons_engaged| 
-    firm_Id + state_code + year, 
-  data = df_clean, 
-  cluster = ~nic_3digit
-)
-
-summary(did_model_6)
-
-
-unique_state_codes <- unique(df_clean$state_code)
-
-## rate of surplus value regressions
-
-did_model_1 <- feols(
-  rate_surplus ~ delicensed + year_initial + persons_engaged| 
-    firm_Id + state_code + year, 
-  data = df_clean, 
-  cluster = ~nic_3digit
-)
-
-summary(did_model_1)
-
-
-state_classification <- data.frame(
-  state_code = c("WEST BENGAL", "GUJARAT", "MAHARASHTRA", "ORISSA",
-                 "ANDHRA PRADESH", "KERALA", "RAJASTHAN", "TAMIL NADU", "KARNATAKA",
-                 "ASSAM", "BIHAR", "HARYANA", "PUNJAB", "UTTAR PRADESH", "JAMMU & KASHMIR"),
-  pro_worker = c(1, 1, 1, 1, 
-                 0, 0, 0, 0, 0,
-                 0, 0, 0, 0, 0, 0),
-  pro_employer = c(0, 0, 0, 0,
-                   1, 1, 1, 1, 1,
-                   0, 0, 0, 0, 0, 0),
-  neutral = c(0, 0, 0, 0,
-              0, 0, 0, 0, 0,
-              1, 1, 1, 1, 1, 1)
-)
-
-View(df_clean)
-df_clean <- df_clean %>%
-  mutate(
-    category = case_when(
-      pro_worker == 1 ~ "pro_worker",
-      pro_employer == 1 ~ "pro_employer",
-      neutral == 1 ~ "neutral",
-      TRUE ~ "other"
-    )
-  )
-
-mean_by_year_category <- df_clean %>%
-  group_by(year, category) %>%
-  summarise(
-    mean_value = mean(rate_of_profit, na.rm = TRUE),
-    .groups = "drop"
-  )
-View(mean_by_year_category)
-
-# Merge with main dataframe while preserving all variables
-df <- df %>%
-  left_join(state_classification, by = "state_code") %>%
-  # Ensure all other variables are preserved
-  relocate(names(state_classification)[-1], .after = state_code)
-
-# Capital Formation Model
-model_bb_1 <- feols(
-  rate_of_profit ~ delicensed + 
-    delicensed*pro_worker + 
-    delicensed*pro_employer +
-    persons_engaged| 
-    firm_Id + state_code + year,
-  data = df_clean,
-  cluster = ~nic_code
-)
-
-summary(model_bb_1)
-
-model_bb_2 <- feols(
-  k_form ~ delicensed + 
-    delicensed*pro_worker + 
-    delicensed*pro_employer +
-    persons_engaged | 
-    firm_Id + state_code + year,
-  data = df_clean,
-  cluster = ~nic_code
-)
-
-summary(model_bb_2) 
-
-
-df_clean <- df_clean %>%
-  mutate(size_quartile = ntile(persons_engaged, 10))
-
-model_size <- feols(
-  rate_of_profit ~ delicensed + 
-    delicensed:size_quartile| 
-    firm_Id + state_code + year,
-  data = df_clean,
-  cluster = ~nic_code
-)
-
-model_trends <- feols(
-  log(value_added/persons_engaged) ~ delicensed + 
-    delicensed:pro_worker + 
-    delicensed:pro_employer| 
-    firm_Id + state_code[year] + year,  # State-specific trends
-  data = df_clean,
-  cluster = ~nic_code
-)
-
-summary(model_trends)
-
-event <- feols(
-  rate_of_profit ~ i(year, pro_worker, ref = 1984) | 
-    firm_Id + state_code[year],
-  data = filter(df_clean, year <= 1985), # Pre-treatment only
-  cluster = ~nic_code
-)
 
 ## Averages of rate of profit by category
 df_clean <- df_clean %>%
@@ -326,42 +154,9 @@ df_clean <- df_clean %>%
     delin_group = nic_3digit %in% delin
   )
 
-# Compute mean rate of profit by delin group
-profit_by_year <- df_clean %>%
-  group_by(year, delin_group) %>%
-  summarise(
-    mean_profit_rate = median(rate_of_profit, na.rm = TRUE),
-    n_firms = n_distinct(firm_Id, na.rm = TRUE),
-    n_rows = n(),
-    .groups = "drop"
-  ) %>%
-  mutate(delin_group_label = ifelse(delin_group, "Delicensed", "Non-Delicensed"))
-
-# Print results
-cat("\nAverage Rate of Profit by Year and Delin Group:\n")
-print(profit_by_year)
-
-kform_by_year <- df_clean %>%
-  group_by(year, delin_group) %>%
-  summarise(
-    mean_k_form = median(k_form, na.rm = TRUE),
-    n_firms = n_distinct(firm_Id, na.rm = TRUE),
-    n_rows = n(),
-    .groups = "drop"
-  ) %>%
-  mutate(delin_group_label = ifelse(delin_group, "Delicensed", "Non-Delicensed"))
-
-print(kform_by_year)
-
-View(df)
-
-df <- df %>%
-  mutate(
-    delin_group = nic_3digit %in% delin
-  )
-
 df$nic_3digit <- as.integer(substr(as.character(df$nic_code), 1, 3))
 
+## Firms by treatment (har saal ka)
 firms_by_year <- df %>%
   group_by(year, delin_group) %>%
   summarise(
@@ -373,28 +168,67 @@ firms_by_year <- df %>%
 print(firms_by_year)
 
 
-rosv_by_year <- df_clean %>%
-  group_by(year, delin_group) %>%
-  summarise(
-    mean_rosv = mean(year_initial, na.rm = TRUE),
-    n_firms = n_distinct(firm_Id, na.rm = TRUE),
-    n_rows = n(),
-    .groups = "drop"
-  ) %>%
-  mutate(delin_group_label = ifelse(delin_group, "Delicensed", "Non-Delicensed"))
-
-print(rosv_by_year)
-
-# Model 7: Full model for rate_of_profit with all covariates and state trends
-# Convert state_code to numeric
 df_clean$state_code_numeric <- as.numeric(as.factor(df_clean$state_code))
 
-# Run the model with the numeric state_code
-# Ensure state_code_numeric exists as a numeric variable
 df_clean <- df_clean %>%
   mutate(state_code_numeric = as.numeric(factor(state_code)))
 
-# Model 7: Full model for rate_of_profit with all covariates and state trends
+## No State Trends DiD
+
+did_model_k_baseline <- feols(
+  k_form ~ delicensed | 
+    firm_Id + state_code + Year,
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+did_model_k_persons <- feols(
+  k_form ~ delicensed + persons_engaged | 
+    firm_Id + state_code + Year,
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+did_model_k_all <- feols(
+  k_form ~ delicensed + persons_engaged + gross_sales | 
+    firm_Id + state_code + Year,
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+summary(did_model_k_baseline)
+summary(did_model_k_persons)
+summary(did_model_k_all)
+summary(did_model_profit_baseline)
+summary(did_model_profit_persons)
+summary(did_model_profit_all)
+
+
+# Rate of Profit models
+did_model_profit_baseline <- feols(
+  rate_of_profit ~ delicensed | 
+    firm_Id + state_code + Year,
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+did_model_profit_persons <- feols(
+  rate_of_profit ~ delicensed + persons_engaged | 
+    firm_Id + state_code + Year,
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+did_model_profit_all <- feols(
+  rate_of_profit ~ delicensed + persons_engaged + gross_sales | 
+    firm_Id + state_code + Year,
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+
+
+## Full model for rate_of_profit with all covariates and state trends
 did_model_7 <- feols(
   rate_of_profit ~ delicensed + gross_sales + persons_engaged | 
     firm_Id + state_code + year + year[state_code_numeric],
@@ -402,7 +236,7 @@ did_model_7 <- feols(
   cluster = ~nic_3digit
 )
 
-# Model 8: Remove gross_sales for rate_of_profit
+# Remove gross_sales for rate_of_profit
 did_model_8 <- feols(
   rate_of_profit ~ delicensed + persons_engaged | 
     firm_Id + state_code + year + year[state_code_numeric],
@@ -442,15 +276,113 @@ did_model_12 <- feols(
   cluster = ~nic_3digit
 )
 
-modelsummary(list(
-  "Profit (Full)" = did_model_7,
-  "Profit (No Sales)" = did_model_8,
-  "Profit (Only Delicensed)" = did_model_9,
-  "K (Full)" = did_model_10,
-  "K (No Sales)" = did_model_11,
-  "K (Only Delicensed)" = did_model_12
-), 
-stars = TRUE,
-gof_map = c("nobs", "r.squared", "within.r.squared")
+summary(did_model_7)
+summary(did_model_8)
+summary(did_model_9)
+summary(did_model_10)
+summary(did_model_11)
+summary(did_model_12)
+
+
+### Surplus Value
+
+df_clean$delicensed_lag <- ifelse(
+  df_clean$nic_3digit %in% delin & df_clean$Year >= 1986,
+  1,
+  0
 )
 
+did_model_surplus_1 <- feols(
+  rate_surplus ~ delicensed + gross_sales + persons_engaged| 
+    firm_Id + state_code + year + year[state_code_numeric],
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+did_model_surplus_2 <- feols(
+  rate_surplus ~ delicensed + gross_sales + persons_engaged| 
+    firm_Id + state_code + year,
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+did_model_surplus_3 <- feols(
+  rate_surplus ~ delicensed_lag + gross_sales + persons_engaged| 
+    firm_Id + state_code + year,
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+did_model_surplus_4 <- feols(
+  rate_surplus ~ delicensed_lag + gross_sales + persons_engaged| 
+    firm_Id + state_code + year + year[state_code_numeric],
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+summary(did_model_surplus_1)
+summary(did_model_surplus_2)
+summary(did_model_surplus_3)
+summary(did_model_surplus_4)
+
+
+df_clean$treated <- ifelse(df_clean$nic_3digit %in% delin, 1, 0)
+
+# Event-study for rate_of_profit
+
+did_model_10_event_profit <- feols(
+  rate_of_profit ~ i(Year, treated, ref = "1984") + persons_engaged + gross_sales| 
+    firm_Id + state_code + Year + Year[state_code_numeric],
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+summary(did_model_10_event_profit)
+
+did_model_10_event_k <- feols(
+  k_form ~ i(Year, treated, ref = "1984") + persons_engaged + gross_sales| 
+    firm_Id + state_code + Year + Year[state_code_numeric],
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+summary(did_model_10_event_k)
+
+did_model_10_event_surplus <- feols(
+  rate_surplus ~ i(Year, treated, ref = "1985") + persons_engaged + gross_sales| 
+    firm_Id + state_code + Year + Year[state_code_numeric],
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+summary(did_model_10_event_surplus)
+
+## Besley & Burgess
+
+did_model_13 <- feols(
+  k_form ~ delicensed + delicensed*pro_employer + delicensed*pro_worker + gross_sales + persons_engaged| 
+    firm_Id + state_code + year + Year[state_code_numeric],
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+summary(did_model_13)
+
+did_model_14 <- feols(
+  rate_of_profit ~ delicensed + delicensed*pro_employer + delicensed*pro_worker + gross_sales + persons_engaged| 
+    firm_Id + state_code + year + Year[state_code_numeric],
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+summary(did_model_14)
+
+
+did_model_15 <- feols(
+  rate_surplus ~ delicensed + delicensed*pro_employer + delicensed*pro_worker + gross_sales + persons_engaged| 
+    firm_Id + state_code + year + Year[state_code_numeric],
+  data = df_clean,
+  cluster = ~nic_3digit
+)
+
+summary(did_model_15)
