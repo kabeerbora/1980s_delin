@@ -134,11 +134,25 @@ def analyze_command(args):
             # Parse filter string (format: col1=value1,col2>=value2)
             conditions = {}
             for f in args.filter.split(','):
-                if '=' in f:
+                # Check for comparison operators
+                if '>=' in f:
+                    parts = f.split('>=')
+                    conditions[parts[0]] = ('>=', float(parts[1]) if '.' in parts[1] else int(parts[1]))
+                elif '<=' in f:
+                    parts = f.split('<=')
+                    conditions[parts[0]] = ('<=', float(parts[1]) if '.' in parts[1] else int(parts[1]))
+                elif '!=' in f:
+                    parts = f.split('!=')
+                    conditions[parts[0]] = ('!=', parts[1])
+                elif '>' in f:
+                    parts = f.split('>')
+                    conditions[parts[0]] = ('>', float(parts[1]) if '.' in parts[1] else int(parts[1]))
+                elif '<' in f:
+                    parts = f.split('<')
+                    conditions[parts[0]] = ('<', float(parts[1]) if '.' in parts[1] else int(parts[1]))
+                elif '=' in f:
                     parts = f.split('=')
-                    col = parts[0]
-                    val = parts[1]
-                    conditions[col] = val
+                    conditions[parts[0]] = parts[1]
             
             df_filtered = tools.filter_by_conditions(df, conditions)
             print(f"  Filtered to {len(df_filtered)} records")

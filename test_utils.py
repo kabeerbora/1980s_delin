@@ -213,8 +213,8 @@ def test_integration_validation_and_cleaning(sample_data_with_missing):
     )
     
     # Verify cleaning preserved numeric types
-    assert df_clean['col1'].dtype in [np.float64, np.int64]
-    assert df_clean['col2'].dtype in [np.float64, np.int64]
+    assert pd.api.types.is_numeric_dtype(df_clean['col1'])
+    assert pd.api.types.is_numeric_dtype(df_clean['col2'])
 
 
 def test_integration_panel_and_analysis(sample_firm_data):

@@ -1,8 +1,9 @@
 """
-Utility functions for 1980s delicensing analysis.
+General-purpose utility functions for data analysis.
 
 This module provides reusable functions for data processing, validation,
-and analysis tasks commonly used across the notebooks.
+and analysis tasks. While developed for 1980s delicensing analysis,
+these utilities can be used for any data analysis project.
 """
 
 import pandas as pd
@@ -116,9 +117,12 @@ class DataProcessor:
                 logger.warning(f"Folder not found: {folder_path}")
                 continue
             
-            # This is a placeholder - actual loading logic would depend on file format
-            logger.info(f"Loading data from {folder_path}")
+            # TODO: Implement actual file loading based on your data format
+            # Example implementations:
             # df = pd.read_csv(os.path.join(folder_path, 'data.csv'))
+            # df = pd.read_stata(os.path.join(folder_path, 'data.dta'))
+            # df = pyreadstat.read_sav(os.path.join(folder_path, 'data.sav'))
+            logger.info(f"Loading data from {folder_path}")
             # dfs.append(df)
         
         if dfs:
